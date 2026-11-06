@@ -116,6 +116,19 @@ export function useTasks() {
     persist(reordered);
   }, [tasks, persist]);
 
+  const swapCurrentAndNext = useCallback(() => {
+    const [current, next] = tasks.filter((t) => !t.done).sort((a, b) => a.order - b.order);
+    if (!current || !next) return;
+
+    const swapped = tasks.map((task) => {
+      if (task.id === current.id) return { ...task, order: next.order };
+      if (task.id === next.id) return { ...task, order: current.order };
+      return task;
+    });
+    setTasks(swapped);
+    persist(swapped);
+  }, [tasks, persist]);
+
   const pending = tasks.filter((t) => !t.done).sort((a, b) => a.order - b.order);
   const done = tasks.filter((t) => t.done).sort((a, b) => a.order - b.order);
   const sortedTasks = [...pending, ...done];
@@ -132,5 +145,6 @@ export function useTasks() {
     deleteTask,
     clearDone,
     reorderTasks,
+    swapCurrentAndNext,
   };
 }

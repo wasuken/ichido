@@ -15,7 +15,7 @@ export default function App() {
   const [query, setQuery] = useState("");
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
-  const { tasks, pending, done, loaded, tags, addTag, addTasks, toggleTask, deleteTask, clearDone, reorderTasks } = useTasks();
+  const { tasks, pending, done, loaded, tags, addTag, addTasks, toggleTask, deleteTask, clearDone, reorderTasks, swapCurrentAndNext } = useTasks();
 
   useEffect(() => {
     fadeAnim.stopAnimation(() => {
@@ -60,6 +60,7 @@ export default function App() {
                 tasksLength={tasks.length}
                 doneLength={done.length}
                 toggleTask={toggleTask}
+                swapCurrentAndNext={swapCurrentAndNext}
                 clearDone={clearDone}
                 setView={setView}
               />

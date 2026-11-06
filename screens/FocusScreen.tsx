@@ -10,11 +10,12 @@ type Props = {
   tasksLength: number;
   doneLength: number;
   toggleTask: (id: string) => void;
+  swapCurrentAndNext: () => void;
   clearDone: () => void;
   setView: (v: "add") => void;
 };
 
-export function FocusScreen({ current, next, tasksLength, doneLength, toggleTask, clearDone, setView }: Props) {
+export function FocusScreen({ current, next, tasksLength, doneLength, toggleTask, swapCurrentAndNext, clearDone, setView }: Props) {
   const [justDone, setJustDone] = useState(false);
   const cardScale = useRef(new Animated.Value(0.93)).current;
 
@@ -77,10 +78,21 @@ export function FocusScreen({ current, next, tasksLength, doneLength, toggleTask
       )}
 
       {next && (
-        <View style={styles.nextCard}>
+        <TouchableOpacity
+          style={styles.nextCard}
+          onPress={() => {
+            setJustDone(false);
+            swapCurrentAndNext();
+          }}
+          activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel={`NEXT: ${next.text}`}
+          accessibilityHint="現在のタスクと順番を入れ替えます"
+        >
           <Text style={styles.nextLabel}>NEXT</Text>
           <Text style={styles.nextText}>{next.text}</Text>
-        </View>
+          <Text style={styles.nextHint}>タップでNOWと入れ替え</Text>
+        </TouchableOpacity>
       )}
     </View>
   );
@@ -157,6 +169,11 @@ const styles = StyleSheet.create({
     color: C.inkMid,
     lineHeight: 22,
     fontFamily: Platform.OS === "android" ? "serif" : "Georgia",
+  },
+  nextHint: {
+    marginTop: 6,
+    fontSize: 12,
+    color: C.inkLight,
   },
   emptyCard: {
     padding: 40,
