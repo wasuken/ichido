@@ -57,3 +57,50 @@ export function completeTag(text: string, active: ActiveTag, tag: string) {
     cursor: active.start + inserted.length + (reuseSpace ? 1 : 0),
   };
 }
+
+type Selection = { start: number; end: number };
+type InputEdit = { text: string; selection: Selection };
+
+export function insertAtCursor(text: string, selection: Selection, insert: string): InputEdit {
+  const cursor = selection.start + insert.length;
+  return {
+    text: text.slice(0, selection.start) + insert + text.slice(selection.end),
+    selection: { start: cursor, end: cursor },
+  };
+}
+
+export function insertHash(text: string, selection: Selection): InputEdit {
+  const boundary = selection.start === 0 || /\s/u.test(text[selection.start - 1]);
+  return insertAtCursor(text, selection, boundary ? "#" : " #");
+}
+
+export function toolbarState(text: string, selection: Selection, history: string[]): {
+  mode: "prefix" | "history";
+  query: string;
+  candidates: string[];
+} {
+  const active = getActiveTag(text, selection);
+  const query = active?.query ?? "";
+  return {
+    mode: active ? "prefix" : "history",
+    query,
+    candidates: suggestTags(history, query).reverse(),
+  };
+}
+
+export function applyTagChip(text: string, selection: Selection, tag: string): InputEdit {
+  const active = getActiveTag(text, selection);
+  if (!active) {
+    const hashed = insertHash(text, selection);
+    return insertAtCursor(hashed.text, hashed.selection, `${tag} `);
+  }
+
+  // Reuse the existing whole-token completion. Complete before the suffix so
+  // the toolbar always adds a literal space, including before a tab/newline.
+  const completed = completeTag(text.slice(0, active.end), active, tag);
+  const suffix = text.slice(active.end);
+  return {
+    text: completed.text + (suffix.startsWith(" ") ? suffix.slice(1) : suffix),
+    selection: { start: completed.cursor, end: completed.cursor },
+  };
+}

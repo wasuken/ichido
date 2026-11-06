@@ -1,7 +1,7 @@
 import React, { useRef, useEffect, useState } from "react";
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Platform } from "react-native";
+import { View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet, Platform } from "react-native";
 import { C } from "../constants/colors";
-import { completeTag, getActiveTag, suggestTags } from "../utils/tags";
+import { applyTagChip, insertHash, toolbarState } from "../utils/tags";
 
 type Props = {
   input: string;
@@ -14,21 +14,18 @@ export function AddScreen({ input, setInput, onAdd, tags }: Props) {
   const inputRef = useRef<TextInput>(null);
   const [selection, setSelection] = useState({ start: input.length, end: input.length });
   const [completionSelection, setCompletionSelection] = useState<{ start: number; end: number }>();
-  const activeTag = getActiveTag(input, selection);
-  const suggestions = activeTag ? suggestTags(tags, activeTag.query) : [];
+  const [focused, setFocused] = useState(false);
+  const toolbar = toolbarState(input, selection, tags);
 
   useEffect(() => {
     const timer = setTimeout(() => inputRef.current?.focus(), 200);
     return () => clearTimeout(timer);
   }, []);
 
-  const selectTag = (tag: string) => {
-    if (!activeTag) return;
-    const completed = completeTag(input, activeTag, tag);
-    const cursor = { start: completed.cursor, end: completed.cursor };
-    setInput(completed.text);
-    setSelection(cursor);
-    setCompletionSelection(cursor);
+  const applyEdit = (edit: ReturnType<typeof insertHash>) => {
+    setInput(edit.text);
+    setSelection(edit.selection);
+    setCompletionSelection(edit.selection);
     inputRef.current?.focus();
   };
 
@@ -39,6 +36,8 @@ export function AddScreen({ input, setInput, onAdd, tags }: Props) {
         ref={inputRef}
         style={styles.textInput}
         value={input}
+        onFocus={() => setFocused(true)}
+        onBlur={() => setFocused(false)}
         onChangeText={(text) => {
           setCompletionSelection(undefined);
           setInput(text);
@@ -59,22 +58,36 @@ export function AddScreen({ input, setInput, onAdd, tags }: Props) {
         placeholderTextColor={C.inkFaint}
         textAlignVertical="top"
       />
-      {suggestions.length > 0 && (
-        <View style={styles.suggestions}>
-          <Text style={styles.suggestionLabel}>タグ候補</Text>
-          <View style={styles.tagList}>
-            {suggestions.map((tag) => (
+      {focused && (
+        <View style={styles.toolbar}>
+          <TouchableOpacity
+            style={styles.hashButton}
+            onPress={() => applyEdit(insertHash(input, selection))}
+            accessibilityRole="button"
+            accessibilityLabel="タグの # を挿入"
+          >
+            <Text style={styles.hashText}>#</Text>
+          </TouchableOpacity>
+          <ScrollView
+            horizontal
+            style={styles.tagScroll}
+            contentContainerStyle={styles.tagList}
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="none"
+            showsHorizontalScrollIndicator={false}
+          >
+            {toolbar.candidates.map((tag) => (
               <TouchableOpacity
                 key={tag}
-                style={styles.tagButton}
-                onPress={() => selectTag(tag)}
+                style={[styles.tagButton, toolbar.mode === "prefix" && styles.candidateButton]}
+                onPress={() => applyEdit(applyTagChip(input, selection, tag))}
                 accessibilityRole="button"
-                accessibilityLabel={`タグ ${tag} を挿入`}
+                accessibilityLabel={`${toolbar.mode === "prefix" ? "候補" : "履歴"}タグ ${tag} を挿入`}
               >
-                <Text style={styles.tagText}>#{tag}</Text>
+                <Text style={[styles.tagText, toolbar.mode === "prefix" && styles.candidateText]}>#{tag}</Text>
               </TouchableOpacity>
             ))}
-          </View>
+          </ScrollView>
         </View>
       )}
       <View style={styles.addFooter}>
@@ -126,31 +139,60 @@ const styles = StyleSheet.create({
     padding: 14,
     alignItems: "flex-end",
   },
-  suggestions: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+  toolbar: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
     borderTopWidth: 1,
     borderTopColor: C.cardBorder,
+    backgroundColor: C.bg,
   },
-  suggestionLabel: {
-    fontSize: 12,
-    color: C.inkMid,
-    marginBottom: 8,
+  hashButton: {
+    width: 44,
+    height: 44,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: C.ink,
+    borderRadius: 3,
+    backgroundColor: C.card,
+  },
+  hashText: {
+    fontSize: 22,
+    color: C.ink,
+    fontWeight: "700",
+  },
+  tagScroll: {
+    flex: 1,
   },
   tagList: {
     flexDirection: "row",
-    flexWrap: "wrap",
+    alignItems: "center",
     gap: 8,
   },
   tagButton: {
+    minHeight: 44,
+    justifyContent: "center",
     paddingHorizontal: 12,
-    paddingVertical: 10,
+    paddingVertical: 8,
     borderRadius: 3,
+    borderWidth: 1,
+    borderColor: C.cardBorder,
+    backgroundColor: C.card,
+  },
+  candidateButton: {
+    borderWidth: 2,
+    borderColor: C.ink,
     backgroundColor: C.greenLight,
   },
   tagText: {
     fontSize: 15,
     color: C.ink,
+  },
+  candidateText: {
+    fontWeight: "700",
   },
   addBtn: {
     backgroundColor: C.ink,
