@@ -1,6 +1,6 @@
 # ichido のアーキテクチャ
 
-最終更新: 2026-11-05
+最終更新: 2026-11-06
 
 ## アプリの概要
 
@@ -56,6 +56,8 @@ ichido/
 ├── package.json             # 依存関係と開発コマンド
 ├── package-lock.json        # npm の依存関係ロック
 ├── tsconfig.json            # TypeScript 設定
+├── usbinstall.sh            # Android release APK のビルドと USB 実機へのインストール
+├── .env.usbinstall.example  # USB インストール用ローカル設定のひな形
 ├── README.md                # アプリのコンセプトと機能・検証方法
 ├── AGENTS.md                # コード修正時の本書更新ルール
 └── ARCHITECTURE.md          # 本書
@@ -180,6 +182,12 @@ flowchart TD
 | `production` | バージョン番号の自動インクリメントを有効にする |
 
 EAS CLI は `>= 16.32.0`、アプリバージョンの管理元は `remote` を指定する。`app.json` に EAS プロジェクト ID、`eas.json` に production の提出設定枠がある。ただし、実際の配布状況はコードからは確認できない。CI/CD ワークフローや監視サービスの設定は含まれていない。
+
+`usbinstall.sh` は `bash usbinstall.sh` として実行するローカル開発用スクリプト。スクリプト自身の場所を基準にパスを解決するため、起動時のカレントディレクトリに依存しない。生成済みの `android/` 内で `./gradlew assembleRelease` を実行し、成功した場合のみ release APK を `adb install -r` で USB 接続した実機へ上書きインストールする。APK のパスはリポジトリを基準に組み立て、環境固有の絶対パスを保持しない。
+
+初回はルートで `cp .env.usbinstall.example .env.usbinstall.local` を実行し、`ADB_PATH` に adb 実行ファイルの絶対パス、`ANDROID_SERIAL` に `adb devices` で確認したシリアル番号を設定する。`.env.usbinstall.local` は既存の `.env*.local` ルールで Git 管理対象外となる。設定ファイルは Bash の `source` で読み込むため、信頼できるローカル設定だけを置き、空白を含む値は引用符で囲む。アプリの状態や AsyncStorage には関与しない。
+
+設定ファイルがなければ作成手順を標準エラーへ表示し、終了コード 1 で終了する。必須設定の空値、adb の存在・実行権限、Gradle ラッパーの実行権限、ビルド後の APK の存在も検証し、不備があれば理由を表示して終了する。ビルドやインストール自体の失敗も非ゼロで終了する。シェル構文は `bash -n usbinstall.sh` で確認する。実機を使わない検証では一時ディレクトリにスクリプトをコピーし、設定欠落・空値・adb 不在、および Gradle/adb のスタブを使った成功経路とビルド失敗時のインストール抑止を確認する。実際のビルド・インストールには Android のビルド環境と対象端末が必要になる。
 
 ## 開発と検証
 
