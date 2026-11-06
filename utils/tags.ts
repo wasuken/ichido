@@ -1,10 +1,10 @@
-// Tags start at a word boundary and contain letters, numbers, marks, _ or -.
+// Tags start at the beginning of text or after whitespace.
 // Unicode properties allow Japanese names as well as Latin names.
-const TAG_PATTERN = /(^|[^\p{L}\p{N}\p{M}_\/-])\/([\p{L}\p{N}\p{M}_-]+)/gu;
+const TAG_PATTERN = /(^|\s)#([\p{L}\p{N}\p{M}_-]+)/gu;
 const TAG_CHARACTER = /[\p{L}\p{N}\p{M}_-]/u;
 
 export function parseTagName(input: string): string | null {
-  const name = input.trim().replace(/^\//u, "").normalize("NFC");
+  const name = input.trim().replace(/^#/u, "").normalize("NFC");
   return /^[\p{L}\p{N}\p{M}_-]+$/u.test(name) ? name : null;
 }
 
@@ -30,8 +30,9 @@ export function getActiveTag(
 ): ActiveTag | null {
   if (selection.start !== selection.end) return null;
   const cursor = selection.start;
-  const match = text.slice(0, cursor).match(/(^|[^\p{L}\p{N}\p{M}_\/-])\/([\p{L}\p{N}\p{M}_-]*)$/u);
-  if (!match) return null;
+  const match = text.slice(0, cursor).match(/(^|\s)#([\p{L}\p{N}\p{M}_-]*)$/u);
+  // A cursor between the hashes in ## must not offer completion either.
+  if (!match || (match[2] === "" && text[cursor] === "#")) return null;
 
   let end = cursor;
   // Replace the entire tag when completing with the cursor in its middle.
@@ -44,13 +45,13 @@ export function getActiveTag(
 
 export function suggestTags(tags: string[], query: string): string[] {
   const prefix = query.normalize("NFC").toLowerCase();
-  return tags.filter((tag) => tag.toLowerCase().startsWith(prefix));
+  return tags.filter((tag) => tag.normalize("NFC").toLowerCase().startsWith(prefix));
 }
 
 export function completeTag(text: string, active: ActiveTag, tag: string) {
   const suffix = text.slice(active.end);
   const reuseSpace = /^[ \t]/u.test(suffix);
-  const inserted = `/${tag}${reuseSpace ? "" : " "}`;
+  const inserted = `#${tag}${reuseSpace ? "" : " "}`;
   return {
     text: text.slice(0, active.start) + inserted + suffix,
     cursor: active.start + inserted.length + (reuseSpace ? 1 : 0),

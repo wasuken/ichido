@@ -34,7 +34,7 @@ export function AddScreen({ input, setInput, onAdd, tags }: Props) {
 
   return (
     <View style={styles.card}>
-      <Text style={styles.addHintLabel}>1行1タスク・/でタグを追加</Text>
+      <Text style={styles.addHintLabel}>1行1タスク・#でタグを追加</Text>
       <TextInput
         ref={inputRef}
         style={styles.textInput}
@@ -55,7 +55,7 @@ export function AddScreen({ input, setInput, onAdd, tags }: Props) {
         }}
         accessibilityLabel="タスク入力"
         multiline
-        placeholder={"買い物 /暮らし\n資料まとめ /仕事\nメール返信"}
+        placeholder={"買い物 #暮らし\n資料まとめ #仕事\nメール返信"}
         placeholderTextColor={C.inkFaint}
         textAlignVertical="top"
       />
@@ -71,7 +71,7 @@ export function AddScreen({ input, setInput, onAdd, tags }: Props) {
                 accessibilityRole="button"
                 accessibilityLabel={`タグ ${tag} を挿入`}
               >
-                <Text style={styles.tagText}>/{tag}</Text>
+                <Text style={styles.tagText}>#{tag}</Text>
               </TouchableOpacity>
             ))}
           </View>

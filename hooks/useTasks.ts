@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Task } from "../types";
-import { extractTags, mergeTags, parseTagName } from "../utils/tags";
+import { mergeTags, parseTagName } from "../utils/tags";
+import { buildNewTasks, swapFocusOrders } from "../utils/focus";
 
-const STORAGE_KEY = "wasu-todo-v1";
+const STORAGE_KEY = "wasu-todo-v2";
 const TAGS_STORAGE_KEY = "wasu-tags-v1";
 
 export function useTasks() {
@@ -20,14 +21,8 @@ export function useTasks() {
       let restoredTags: string[] = [];
       if (raw) {
         try {
-          const parsed = JSON.parse(raw);
-          // orderがない古いデータ対応
-          const withOrder = parsed.map((t: Task, i: number) => ({
-            ...t,
-            order: t.order ?? i,
-          }));
-          setTasks(withOrder);
-          restoredTasks = withOrder;
+          restoredTasks = JSON.parse(raw);
+          setTasks(restoredTasks);
         } catch {}
       }
       try {
@@ -37,8 +32,7 @@ export function useTasks() {
             typeof tag === "string" && /^[\p{L}\p{N}\p{M}_-]+$/u.test(tag));
         }
       } catch {}
-      // Include tags in tasks created before tag history was introduced.
-      setTags(mergeTags(restoredTags, ...restoredTasks.map((task) => extractTags(task.text))));
+      setTags(mergeTags(restoredTags, ...restoredTasks.map((task) => task.tags)));
       setLoaded(true);
     });
   }, []);
@@ -60,20 +54,10 @@ export function useTasks() {
   }, []);
 
   const addTasks = useCallback((texts: string[]) => {
-    const maxOrder = tasks.length > 0 ? Math.max(...tasks.map(t => t.order)) : -1;
-    const newTasks: Task[] = [
-      ...tasks,
-      ...texts.map((text, i) => ({
-        id: `${Date.now()}-${Math.random()}`,
-        text,
-        done: false,
-        createdAt: Date.now(),
-        order: maxOrder + i + 1,
-      })),
-    ];
+    const newTasks = buildNewTasks(tasks, texts, Date.now());
     setTasks(newTasks);
     persist(newTasks);
-    setTags((previous) => mergeTags(previous, ...texts.map(extractTags)));
+    setTags((previous) => mergeTags(previous, ...newTasks.slice(tasks.length).map((task) => task.tags)));
   }, [tasks, persist]);
 
   const toggleTask = useCallback((id: string) => {
@@ -116,15 +100,9 @@ export function useTasks() {
     persist(reordered);
   }, [tasks, persist]);
 
-  const swapCurrentAndNext = useCallback(() => {
-    const [current, next] = tasks.filter((t) => !t.done).sort((a, b) => a.order - b.order);
-    if (!current || !next) return;
-
-    const swapped = tasks.map((task) => {
-      if (task.id === current.id) return { ...task, order: next.order };
-      if (task.id === next.id) return { ...task, order: current.order };
-      return task;
-    });
+  const swapCurrentAndNext = useCallback((tag?: string | null) => {
+    const swapped = swapFocusOrders(tasks, tag);
+    if (swapped === tasks) return;
     setTasks(swapped);
     persist(swapped);
   }, [tasks, persist]);

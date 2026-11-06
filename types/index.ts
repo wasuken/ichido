@@ -1,6 +1,7 @@
 export type Task = {
   id: string;
   text: string;
+  tags: string[];
   done: boolean;
   createdAt: number;
   order: number;

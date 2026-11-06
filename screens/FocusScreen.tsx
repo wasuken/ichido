@@ -1,10 +1,13 @@
 import React, { useState, useEffect, useRef } from "react";
-import { View, Text, TouchableOpacity, StyleSheet, Animated, Platform } from "react-native";
+import { View, Text, TouchableOpacity, StyleSheet, Animated, Platform, ScrollView } from "react-native";
 import { C } from "../constants/colors";
 import { Task } from "../types";
 import { CheckIcon, PlusIcon } from "../components/Icons";
 
 type Props = {
+  tags: string[];
+  selectedTag: string | null;
+  onSelectTag: (tag: string) => void;
   current: Task | null;
   next: Task | null;
   tasksLength: number;
@@ -15,7 +18,7 @@ type Props = {
   setView: (v: "add") => void;
 };
 
-export function FocusScreen({ current, next, tasksLength, doneLength, toggleTask, swapCurrentAndNext, clearDone, setView }: Props) {
+export function FocusScreen({ tags, selectedTag, onSelectTag, current, next, tasksLength, doneLength, toggleTask, swapCurrentAndNext, clearDone, setView }: Props) {
   const [justDone, setJustDone] = useState(false);
   const cardScale = useRef(new Animated.Value(0.93)).current;
 
@@ -36,6 +39,30 @@ export function FocusScreen({ current, next, tasksLength, doneLength, toggleTask
 
   return (
     <View>
+      {tags.length > 0 && (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.tagRow}
+          keyboardShouldPersistTaps="handled"
+        >
+          {tags.map((tag) => {
+            const selected = selectedTag !== null && tag.normalize("NFC").toLowerCase() === selectedTag.normalize("NFC").toLowerCase();
+            return (
+              <TouchableOpacity
+                key={tag}
+                style={[styles.tagChip, selected && styles.selectedChip]}
+                onPress={() => onSelectTag(tag)}
+                accessibilityRole="button"
+                accessibilityState={{ selected }}
+                accessibilityLabel={`#${tag} で絞り込み`}
+              >
+                <Text style={[styles.tagText, selected && styles.selectedTagText]}>#{tag}</Text>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+      )}
       {current ? (
         <Animated.View style={[styles.card, styles.focusCard, { transform: [{ scale: cardScale }] }]}>
           <Text style={styles.nowLabel}>NOW</Text>
@@ -99,6 +126,27 @@ export function FocusScreen({ current, next, tasksLength, doneLength, toggleTask
 }
 
 const styles = StyleSheet.create({
+  tagRow: {
+    paddingHorizontal: 20,
+    paddingBottom: 16,
+    gap: 8,
+  },
+  tagChip: {
+    minHeight: 44,
+    justifyContent: "center",
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 22,
+    borderWidth: 2,
+    borderColor: C.cardBorder,
+    backgroundColor: C.card,
+  },
+  selectedChip: {
+    borderColor: C.ink,
+    backgroundColor: C.greenLight,
+  },
+  tagText: { color: C.ink, fontSize: 15 },
+  selectedTagText: { fontWeight: "700" },
   card: {
     marginHorizontal: 20,
     backgroundColor: C.card,

@@ -51,7 +51,7 @@ export function TagsScreen({ tags, addTag, onSelectTag }: Props) {
       <Text style={styles.inputHint} accessibilityLiveRegion="polite">
         {exists ? "このタグは登録済みです" : input.trim() && !name
           ? "タグ名には文字・数字・_・-が使えます"
-          : "先頭の / は省略できます"}
+          : "先頭の # は省略できます"}
       </Text>
       {tags.length === 0 ? (
         <Text style={styles.emptyText}>まだタグがありません</Text>
@@ -63,9 +63,9 @@ export function TagsScreen({ tags, addTag, onSelectTag }: Props) {
               style={styles.tagButton}
               onPress={() => onSelectTag(tag)}
               accessibilityRole="button"
-              accessibilityLabel={`/${tag} で一覧を検索`}
+              accessibilityLabel={`#${tag} で一覧を検索`}
             >
-              <Text style={styles.tagText}>/{tag}</Text>
+              <Text style={styles.tagText}>#{tag}</Text>
             </TouchableOpacity>
           ))}
         </View>

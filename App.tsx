@@ -8,14 +8,28 @@ import { FocusScreen } from "./screens/FocusScreen";
 import { ListScreen } from "./screens/ListScreen";
 import { AddScreen } from "./screens/AddScreen";
 import { TagsScreen } from "./screens/TagsScreen";
+import { availableTags, pickFocus } from "./utils/focus";
 
 export default function App() {
   const [view, setView] = useState<ViewType>("focus");
   const [input, setInput] = useState("");
   const [query, setQuery] = useState("");
+  const [selectedTag, setSelectedTag] = useState<string | null>(null);
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
   const { tasks, pending, done, loaded, tags, addTag, addTasks, toggleTask, deleteTask, clearDone, reorderTasks, swapCurrentAndNext } = useTasks();
+
+  const focusTags = availableTags(pending);
+  // Derive an effective selection immediately, so the last matching completion
+  // never renders an empty filtered view while other tasks are pending.
+  const activeTag = focusTags.find((tag) =>
+    selectedTag !== null && tag.normalize("NFC").toLowerCase() === selectedTag.normalize("NFC").toLowerCase()
+  ) ?? null;
+  const { now: current, next } = pickFocus(pending, activeTag);
+
+  useEffect(() => {
+    if (selectedTag && !activeTag) setSelectedTag(null);
+  }, [selectedTag, activeTag]);
 
   useEffect(() => {
     fadeAnim.stopAnimation(() => {
@@ -55,12 +69,15 @@ export default function App() {
           <Animated.View style={{ opacity: fadeAnim }}>
             {view === "focus" && (
               <FocusScreen
-                current={pending[0] ?? null}
-                next={pending[1] ?? null}
+                current={current}
+                next={next}
+                tags={focusTags}
+                selectedTag={activeTag}
+                onSelectTag={(tag) => setSelectedTag(activeTag === tag ? null : tag)}
                 tasksLength={tasks.length}
                 doneLength={done.length}
                 toggleTask={toggleTask}
-                swapCurrentAndNext={swapCurrentAndNext}
+                swapCurrentAndNext={() => swapCurrentAndNext(activeTag)}
                 clearDone={clearDone}
                 setView={setView}
               />
@@ -83,7 +100,7 @@ export default function App() {
                 tags={tags}
                 addTag={addTag}
                 onSelectTag={(tag) => {
-                  setQuery(`/${tag}`);
+                  setQuery(`#${tag}`);
                   setView("list");
                 }}
               />
