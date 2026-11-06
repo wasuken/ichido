@@ -1,5 +1,5 @@
 import React from "react";
-import { View, Text, StyleSheet, Platform } from "react-native";
+import { View, Text, StyleSheet, Platform, StatusBar } from "react-native";
 import { C } from "../constants/colors";
 import { View as ViewType } from "../types";
 import { TabButton } from "./TabButton";
@@ -55,7 +55,7 @@ export function Header({ view, setView, pendingCount }: Props) {
 const styles = StyleSheet.create({
   header: {
     paddingHorizontal: 20,
-    paddingTop: 56,
+    paddingTop: Platform.OS === "android" ? (StatusBar.currentHeight ?? 0) + 24 : 56,
     paddingBottom: 0,
   },
   headerRow: {
