@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { availableTags, buildNewTasks, filterByTag, pickFocus, swapFocusOrders } from "../utils/focus.ts";
 
-const task = (id, order, tags = [], done = false) => ({ id, text: `本文 ${id}`, order, tags, done, createdAt: 10 });
+const task = (id, order, tags = [], done = false) => ({ id, parentId: null, text: `本文 ${id}`, order, tags, done, createdAt: 10 });
 const tasks = [task("a", 0, ["仕事用"]), task("b", 1, ["仕事", "Work", "cafe\u0301"]), task("c", 2, ["仕事", "work", "café"]), task("d", 3, ["完了のみ"], true)];
 
 test("T10: filterByTag matches complete normalized case-insensitive names", () => {
@@ -64,7 +64,7 @@ test("T17: buildNewTasks appends extracted tags with orders after the maximum", 
   const result = buildNewTasks(existing, texts, 123);
   assert.deepEqual(result.slice(0, 2), existing);
   assert.equal(result[0], existing[0]);
-  assert.deepEqual(result.slice(2).map(({ id, ...rest }) => rest), texts.map((text, i) => ({ text, tags: [["仕事", "Work"], ["暮らし"], []][i], done: false, createdAt: 123, order: 21 + i })));
+  assert.deepEqual(result.slice(2).map(({ id, ...rest }) => rest), texts.map((text, i) => ({ text, parentId: null, tags: [["仕事", "Work"], ["暮らし"], []][i], done: false, createdAt: 123, order: 21 + i })));
   assert.equal(new Set(result.map(t => t.id)).size, result.length);
   assert.deepEqual(existing, before);
   const first = buildNewTasks([], ["#仕事"], 123);

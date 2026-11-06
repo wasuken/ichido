@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef } from "react";
-import { View, StyleSheet, StatusBar, Animated, ScrollView, KeyboardAvoidingView, Platform } from "react-native";
+import React, { useState, useEffect, useRef, useCallback } from "react";
+import { View, StyleSheet, StatusBar, Animated, ScrollView, KeyboardAvoidingView, Platform, Keyboard } from "react-native";
 import { C } from "./constants/colors";
 import { View as ViewType } from "./types";
 import { useTasks } from "./hooks/useTasks";
@@ -8,7 +8,9 @@ import { FocusScreen } from "./screens/FocusScreen";
 import { ListScreen } from "./screens/ListScreen";
 import { AddScreen } from "./screens/AddScreen";
 import { TagsScreen } from "./screens/TagsScreen";
-import { availableTags, pickFocus } from "./utils/focus";
+import { availableTags, resolveFocus, leafCount } from "./utils/tree";
+
+const SCROLL_BOTTOM_PADDING = 60;
 
 export default function App() {
   const [view, setView] = useState<ViewType>("focus");
@@ -17,15 +19,16 @@ export default function App() {
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
-  const { tasks, pending, done, loaded, tags, addTag, addTasks, toggleTask, deleteTask, clearDone, reorderTasks, swapCurrentAndNext } = useTasks();
+  const { tasks, loaded, tags, addTag, addTasks, toggleTask, deleteTask, clearDone, moveTask, addChildren, swapCurrentAndNext } = useTasks();
 
-  const focusTags = availableTags(pending);
+  const focusTags = availableTags(tasks);
   // Derive an effective selection immediately, so the last matching completion
   // never renders an empty filtered view while other tasks are pending.
   const activeTag = focusTags.find((tag) =>
     selectedTag !== null && tag.normalize("NFC").toLowerCase() === selectedTag.normalize("NFC").toLowerCase()
   ) ?? null;
-  const { now: current, next } = pickFocus(pending, activeTag);
+  const { now: current, next, path } = resolveFocus(tasks, activeTag);
+  const doneLength = tasks.filter(task => task.done).length;
 
   useEffect(() => {
     if (selectedTag && !activeTag) setSelectedTag(null);
@@ -41,6 +44,30 @@ export default function App() {
       }).start();
     });
   }, [view]);
+
+  const scrollRef = useRef<ScrollView>(null);
+  const scrollOffset = useRef(0);
+  const splitPanel = useRef<View | null>(null);
+  const revealSplitPanel = useCallback(() => {
+    if (!splitPanel.current) return;
+    requestAnimationFrame(() => {
+      scrollRef.current?.getNativeScrollRef()?.measureInWindow((_x, viewportY, _width, viewportHeight) => {
+        splitPanel.current?.measureInWindow((_panelX, panelY, _panelWidth, panelHeight) => {
+          const overflow = panelY + panelHeight + SCROLL_BOTTOM_PADDING - (viewportY + viewportHeight);
+          if (overflow > 0) scrollRef.current?.scrollTo({ y: scrollOffset.current + overflow, animated: true });
+        });
+      });
+    });
+  }, []);
+  const onSplitPanelLayout = useCallback((panel: View | null) => {
+    splitPanel.current = panel;
+    if (panel) revealSplitPanel();
+  }, [revealSplitPanel]);
+
+  useEffect(() => {
+    const listener = Keyboard.addListener("keyboardDidShow", revealSplitPanel);
+    return () => listener.remove();
+  }, [revealSplitPanel]);
 
   const handleAdd = () => {
     const lines = input.split("\n").map((l) => l.trim()).filter(Boolean);
@@ -63,19 +90,29 @@ export default function App() {
       </View>
 
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
-        <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
-          <Header view={view} setView={setView} pendingCount={pending.length} />
+        <ScrollView
+          ref={scrollRef}
+          contentContainerStyle={styles.scroll}
+          keyboardShouldPersistTaps="handled"
+          onLayout={revealSplitPanel}
+          onScroll={({ nativeEvent }) => { scrollOffset.current = nativeEvent.contentOffset.y; }}
+          scrollEventThrottle={16}
+        >
+          <Header view={view} setView={setView} pendingCount={leafCount(tasks)} />
 
           <Animated.View style={{ opacity: fadeAnim }}>
             {view === "focus" && (
               <FocusScreen
                 current={current}
+                ancestors={path.slice(0, -1)}
+                addChildren={addChildren}
+                onSplitPanelLayout={onSplitPanelLayout}
                 next={next}
                 tags={focusTags}
                 selectedTag={activeTag}
                 onSelectTag={(tag) => setSelectedTag(activeTag === tag ? null : tag)}
                 tasksLength={tasks.length}
-                doneLength={done.length}
+                doneLength={doneLength}
                 toggleTask={toggleTask}
                 swapCurrentAndNext={() => swapCurrentAndNext(activeTag)}
                 clearDone={clearDone}
@@ -87,11 +124,11 @@ export default function App() {
                 tasks={tasks}
                 query={query}
                 setQuery={setQuery}
-                doneLength={done.length}
+                doneLength={doneLength}
                 toggleTask={toggleTask}
                 deleteTask={deleteTask}
                 clearDone={clearDone}
-                reorderTasks={reorderTasks}
+                moveTask={moveTask}
               />
             )}
             {view === "add" && <AddScreen input={input} setInput={setInput} onAdd={handleAdd} tags={tags} />}
@@ -126,6 +163,6 @@ const styles = StyleSheet.create({
     opacity: 0.5,
   },
   scroll: {
-    paddingBottom: 60,
+    paddingBottom: SCROLL_BOTTOM_PADDING,
   },
 });

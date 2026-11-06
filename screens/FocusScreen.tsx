@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from "react";
-import { View, Text, TouchableOpacity, StyleSheet, Animated, Platform, ScrollView } from "react-native";
+import { View, Text, TouchableOpacity, StyleSheet, Animated, Platform, ScrollView, TextInput, Keyboard } from "react-native";
 import { C } from "../constants/colors";
 import { Task } from "../types";
+import type { Next } from "../utils/tree";
 import { CheckIcon, PlusIcon } from "../components/Icons";
 
 type Props = {
@@ -9,7 +10,10 @@ type Props = {
   selectedTag: string | null;
   onSelectTag: (tag: string) => void;
   current: Task | null;
-  next: Task | null;
+  next: Next;
+  ancestors: Task[];
+  addChildren: (parentId: string, texts: string[]) => void;
+  onSplitPanelLayout: (panel: View | null) => void;
   tasksLength: number;
   doneLength: number;
   toggleTask: (id: string) => void;
@@ -18,7 +22,41 @@ type Props = {
   setView: (v: "add") => void;
 };
 
-export function FocusScreen({ tags, selectedTag, onSelectTag, current, next, tasksLength, doneLength, toggleTask, swapCurrentAndNext, clearDone, setView }: Props) {
+export function FocusScreen({ tags, selectedTag, onSelectTag, current, next, ancestors, addChildren, onSplitPanelLayout, tasksLength, doneLength, toggleTask, swapCurrentAndNext, clearDone, setView }: Props) {
+  const [splitTarget, setSplitTarget] = useState<string | null>(null);
+  const splitting = current !== null && splitTarget === current.id;
+  const [childInput, setChildInput] = useState("");
+  const inputRef = useRef<TextInput>(null);
+  const panelRef = useRef<View>(null);
+
+  useEffect(() => {
+    setSplitTarget(null);
+    setChildInput("");
+  }, [current?.id]);
+
+  useEffect(() => {
+    if (!splitting) return;
+    const timer = setTimeout(() => {
+      inputRef.current?.focus();
+      onSplitPanelLayout(panelRef.current);
+    }, 200);
+    return () => {
+      clearTimeout(timer);
+      onSplitPanelLayout(null);
+    };
+  }, [splitting, onSplitPanelLayout]);
+
+  const closeSplit = () => {
+    Keyboard.dismiss();
+    setSplitTarget(null);
+    setChildInput("");
+  };
+  const addSplit = () => {
+    const lines = childInput.split("\n").map(line => line.trim()).filter(Boolean);
+    if (!current || !lines.length) return;
+    addChildren(current.id, lines);
+    closeSplit();
+  };
   const [justDone, setJustDone] = useState(false);
   const cardScale = useRef(new Animated.Value(0.93)).current;
 
@@ -65,6 +103,11 @@ export function FocusScreen({ tags, selectedTag, onSelectTag, current, next, tas
       )}
       {current ? (
         <Animated.View style={[styles.card, styles.focusCard, { transform: [{ scale: cardScale }] }]}>
+          {ancestors.length > 0 && (
+            <Text style={styles.breadcrumb} numberOfLines={1} ellipsizeMode="tail">
+              {ancestors.map(task => task.text).join(" ＞ ")}
+            </Text>
+          )}
           <Text style={styles.nowLabel}>NOW</Text>
           <Text style={styles.focusText}>{current.text}</Text>
           <View style={styles.doneRow}>
@@ -72,6 +115,8 @@ export function FocusScreen({ tags, selectedTag, onSelectTag, current, next, tas
               style={styles.doneBtn}
               onPress={() => handleComplete(current.id)}
               activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel="完了"
             >
               <CheckIcon size={22} color={C.green} />
             </TouchableOpacity>
@@ -79,6 +124,39 @@ export function FocusScreen({ tags, selectedTag, onSelectTag, current, next, tas
               {justDone ? "✓ 完了！" : "タップで完了"}
             </Text>
           </View>
+          <TouchableOpacity
+            style={styles.splitButton}
+            onPress={() => splitting ? closeSplit() : setSplitTarget(current.id)}
+            accessibilityRole="button"
+            accessibilityState={{ expanded: splitting }}
+          >
+            <Text style={styles.actionText}>{splitting ? "− 割る入力を閉じる" : "＋ 割る"}</Text>
+          </TouchableOpacity>
+          {splitting && (
+            <View ref={panelRef} collapsable={false} style={styles.splitPanel} onLayout={() => onSplitPanelLayout(panelRef.current)}>
+              <Text style={styles.breadcrumb}>1行1タスクに割る</Text>
+              <TextInput
+                ref={inputRef}
+                multiline
+                value={childInput}
+                onChangeText={setChildInput}
+                style={styles.childInput}
+                textAlignVertical="top"
+                placeholder="小さな一歩を1行ずつ"
+                placeholderTextColor={C.inkMid}
+                accessibilityLabel="子タスク入力"
+                onFocus={() => onSplitPanelLayout(panelRef.current)}
+              />
+              <View style={styles.splitActions}>
+                <TouchableOpacity style={styles.splitButton} onPress={addSplit} accessibilityRole="button">
+                  <Text style={styles.actionText}>追加</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.splitButton} onPress={closeSplit} accessibilityRole="button">
+                  <Text style={styles.actionText}>やめる</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
         </Animated.View>
       ) : (
         <View style={[styles.card, styles.emptyCard]}>
@@ -104,7 +182,7 @@ export function FocusScreen({ tags, selectedTag, onSelectTag, current, next, tas
         </View>
       )}
 
-      {next && (
+      {next?.kind === "sibling" ? (
         <TouchableOpacity
           style={styles.nextCard}
           onPress={() => {
@@ -113,19 +191,31 @@ export function FocusScreen({ tags, selectedTag, onSelectTag, current, next, tas
           }}
           activeOpacity={0.7}
           accessibilityRole="button"
-          accessibilityLabel={`NEXT: ${next.text}`}
+          accessibilityLabel={`NEXT: ${next.task.text}`}
           accessibilityHint="現在のタスクと順番を入れ替えます"
         >
           <Text style={styles.nextLabel}>NEXT</Text>
-          <Text style={styles.nextText}>{next.text}</Text>
+          <Text style={styles.nextText}>{next.task.text}</Text>
           <Text style={styles.nextHint}>タップでNOWと入れ替え</Text>
         </TouchableOpacity>
-      )}
+      ) : next?.kind === "up" ? (
+        <View style={styles.nextCard}>
+          <Text style={styles.upLabel}>↑ 一個上へ</Text>
+          <Text style={styles.nextText}>{next.task.text}</Text>
+        </View>
+      ) : null}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  breadcrumb: { fontSize: 12, color: C.ink, backgroundColor: C.card, marginBottom: 10 },
+  splitButton: { minHeight: 44, minWidth: 44, paddingHorizontal: 12, justifyContent: "center", alignItems: "center", borderWidth: 1, borderColor: C.inkMid, borderRadius: 3, marginTop: 12 },
+  actionText: { fontSize: 16, color: C.ink },
+  splitPanel: { marginTop: 12, borderTopWidth: 1, borderColor: C.cardBorder, paddingTop: 12 },
+  childInput: { height: 112, fontSize: 16, lineHeight: 24, color: C.ink, backgroundColor: C.bg, padding: 8, borderWidth: 1, borderColor: C.inkMid },
+  splitActions: { flexDirection: "row", gap: 12 },
+  upLabel: { fontSize: 13, fontWeight: "700", color: C.ink, marginBottom: 6 },
   tagRow: {
     paddingHorizontal: 20,
     paddingBottom: 16,
@@ -200,7 +290,7 @@ const styles = StyleSheet.create({
     marginHorizontal: 20,
     marginTop: 10,
     padding: 12,
-    backgroundColor: "rgba(255,255,255,0.55)",
+    backgroundColor: C.card,
     borderWidth: 1,
     borderColor: C.cardBorder,
     borderRadius: 2,
@@ -243,6 +333,7 @@ const styles = StyleSheet.create({
     fontFamily: Platform.OS === "android" ? "serif" : "Georgia",
   },
   emptyAddBtn: {
+    minHeight: 44,
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
@@ -256,6 +347,8 @@ const styles = StyleSheet.create({
     fontFamily: Platform.OS === "android" ? "serif" : "Georgia",
   },
   clearBtn: {
+    minHeight: 44,
+    justifyContent: "center",
     marginTop: 16,
     borderWidth: 1,
     borderColor: C.inkFaint,

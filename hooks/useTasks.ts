@@ -2,9 +2,10 @@ import { useState, useEffect, useCallback } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Task } from "../types";
 import { mergeTags, parseTagName } from "../utils/tags";
-import { buildNewTasks, swapFocusOrders } from "../utils/focus";
+import { buildNewTasks } from "../utils/focus";
+import { buildChildTasks, toggleWithCascade, deleteWithDescendants, moveSibling, swapFocusOrders } from "../utils/tree";
 
-const STORAGE_KEY = "wasu-todo-v2";
+const STORAGE_KEY = "wasu-todo-v3";
 const TAGS_STORAGE_KEY = "wasu-tags-v1";
 
 export function useTasks() {
@@ -61,23 +62,13 @@ export function useTasks() {
   }, [tasks, persist]);
 
   const toggleTask = useCallback((id: string) => {
-    const newTasks = tasks.map((t) => {
-      if (t.id === id) {
-        const toggled = { ...t, done: !t.done };
-        // 完了したら最後に移動
-        if (toggled.done) {
-          toggled.order = Math.max(...tasks.map(t => t.order)) + 1;
-        }
-        return toggled;
-      }
-      return t;
-    });
+    const newTasks = toggleWithCascade(tasks, id);
     setTasks(newTasks);
     persist(newTasks);
   }, [tasks, persist]);
 
   const deleteTask = useCallback((id: string) => {
-    const newTasks = tasks.filter((t) => t.id !== id);
+    const newTasks = deleteWithDescendants(tasks, id);
     setTasks(newTasks);
     persist(newTasks);
   }, [tasks, persist]);
@@ -88,16 +79,20 @@ export function useTasks() {
     persist(newTasks);
   }, [tasks, persist]);
 
-  const reorderTasks = useCallback((fromIndex: number, toIndex: number) => {
-    // Indices refer to the list, which displays pending tasks before done tasks.
-    const sorted = [...tasks].sort((a, b) => Number(a.done) - Number(b.done) || a.order - b.order);
-    if (fromIndex < 0 || toIndex < 0 || fromIndex >= sorted.length || toIndex >= sorted.length) return;
-    const [moved] = sorted.splice(fromIndex, 1);
-    sorted.splice(toIndex, 0, moved);
-    
-    const reordered = sorted.map((t, i) => ({ ...t, order: i }));
-    setTasks(reordered);
-    persist(reordered);
+  const addChildren = useCallback((parentId: string, texts: string[]) => {
+    // The split panel can only add to a pending NOW leaf.
+    if (!tasks.some(task => task.id === parentId && !task.done)) return;
+    const newTasks = buildChildTasks(tasks, parentId, texts, Date.now());
+    setTasks(newTasks);
+    persist(newTasks);
+    setTags(previous => mergeTags(previous, ...newTasks.slice(tasks.length).map(task => task.tags)));
+  }, [tasks, persist]);
+
+  const moveTask = useCallback((id: string, direction: "up" | "down") => {
+    const newTasks = moveSibling(tasks, id, direction);
+    if (newTasks === tasks) return;
+    setTasks(newTasks);
+    persist(newTasks);
   }, [tasks, persist]);
 
   const swapCurrentAndNext = useCallback((tag?: string | null) => {
@@ -107,14 +102,8 @@ export function useTasks() {
     persist(swapped);
   }, [tasks, persist]);
 
-  const pending = tasks.filter((t) => !t.done).sort((a, b) => a.order - b.order);
-  const done = tasks.filter((t) => t.done).sort((a, b) => a.order - b.order);
-  const sortedTasks = [...pending, ...done];
-
   return {
-    tasks: sortedTasks,
-    pending,
-    done,
+    tasks,
     loaded,
     tags,
     addTag,
@@ -122,7 +111,8 @@ export function useTasks() {
     toggleTask,
     deleteTask,
     clearDone,
-    reorderTasks,
+    addChildren,
+    moveTask,
     swapCurrentAndNext,
   };
 }

@@ -4,6 +4,7 @@ import { C } from "../constants/colors";
 import { Task } from "../types";
 import { CheckIcon, TrashIcon } from "../components/Icons";
 import { filterTasks } from "../utils/search";
+import { flattenTree, ancestorsOf, countDescendants } from "../utils/tree";
 
 type Props = {
   tasks: Task[];
@@ -13,7 +14,7 @@ type Props = {
   toggleTask: (id: string) => void;
   deleteTask: (id: string) => void;
   clearDone: () => void;
-  reorderTasks: (from: number, to: number) => void;
+  moveTask: (id: string, direction: "up" | "down") => void;
 };
 
 const MoveIcon = ({ direction }: { direction: "up" | "down" }) => (
@@ -22,16 +23,14 @@ const MoveIcon = ({ direction }: { direction: "up" | "down" }) => (
   </Text>
 );
 
-export function ListScreen({ tasks, query, setQuery, doneLength, toggleTask, deleteTask, clearDone, reorderTasks }: Props) {
-  const filteredTasks = filterTasks(tasks, query);
-  const moveTask = (from: number, to: number) => {
-    reorderTasks(
-      tasks.findIndex((task) => task.id === filteredTasks[from].id),
-      tasks.findIndex((task) => task.id === filteredTasks[to].id),
-    );
-  };
+export function ListScreen({ tasks, query, setQuery, doneLength, toggleTask, deleteTask, clearDone, moveTask }: Props) {
+  const searching = query.trim().length > 0;
+  const flattened = flattenTree(tasks);
+  const filteredTasks = filterTasks(flattened.map(row => row.task), query);
+  const rows = searching ? filteredTasks.map(task => ({ task, depth: 0 })) : flattened;
   const handleDelete = (id: string) => {
-    Alert.alert("削除", "このタスクを消しますか？", [
+    const count = countDescendants(tasks, id);
+    Alert.alert("削除", `このタスクを消しますか？${count > 0 ? `\n中身${count}件も消えます` : ""}`, [
       { text: "キャンセル", style: "cancel" },
       { text: "消す", style: "destructive", onPress: () => deleteTask(id) },
     ]);
@@ -78,39 +77,47 @@ export function ListScreen({ tasks, query, setQuery, doneLength, toggleTask, del
         </View>
       ) : (
         <View style={styles.card}>
-          {filteredTasks.map((item, index) => (
-            <View key={item.id} style={styles.taskRow}>
-              <View style={styles.moveButtons}>
-                {index > 0 && (
-                  <TouchableOpacity onPress={() => moveTask(index, index - 1)}>
-                    <MoveIcon direction="up" />
+          {rows.map(({ task: item, depth }) => {
+            const siblings = tasks.filter(task => task.parentId === item.parentId && task.done === item.done).sort((a, b) => a.order - b.order);
+            const index = siblings.findIndex(task => task.id === item.id);
+            const breadcrumb = searching ? ancestorsOf(tasks, item.id).map(task => task.text).join(" ＞ ") : "";
+            return (
+              <View key={item.id} style={[styles.taskRow, { paddingLeft: 12 + depth * 16 }]}>
+                {breadcrumb.length > 0 && <Text style={styles.breadcrumb} numberOfLines={1} ellipsizeMode="tail">{breadcrumb}</Text>}
+                <View style={styles.taskContent}>
+                  <TouchableOpacity
+                    style={styles.checkButton}
+                    onPress={() => toggleTask(item.id)}
+                    accessibilityRole="checkbox"
+                    accessibilityState={{ checked: item.done }}
+                    accessibilityLabel={`${item.text} の完了切り替え`}
+                  >
+                    <View style={[styles.checkCircle, item.done && styles.checkCircleDone]}>
+                      {item.done && <CheckIcon size={13} color="#fff" />}
+                    </View>
                   </TouchableOpacity>
-                )}
-                {index < filteredTasks.length - 1 && (
-                  <TouchableOpacity onPress={() => moveTask(index, index + 1)}>
-                    <MoveIcon direction="down" />
+                  <Text style={[styles.taskText, item.done && styles.taskTextDone]}>{item.text}</Text>
+                  <TouchableOpacity style={styles.deleteBtn} onPress={() => handleDelete(item.id)} accessibilityRole="button" accessibilityLabel={`${item.text} を削除`}>
+                    <TrashIcon size={14} color={C.inkMid} />
                   </TouchableOpacity>
+                </View>
+                {!searching && (
+                  <View style={styles.moveButtons}>
+                    {index > 0 && (
+                      <TouchableOpacity style={styles.moveButton} onPress={() => moveTask(item.id, "up")} accessibilityRole="button" accessibilityLabel={`${item.text} を上へ`}>
+                        <MoveIcon direction="up" />
+                      </TouchableOpacity>
+                    )}
+                    {index < siblings.length - 1 && (
+                      <TouchableOpacity style={styles.moveButton} onPress={() => moveTask(item.id, "down")} accessibilityRole="button" accessibilityLabel={`${item.text} を下へ`}>
+                        <MoveIcon direction="down" />
+                      </TouchableOpacity>
+                    )}
+                  </View>
                 )}
               </View>
-
-              <TouchableOpacity
-                style={[styles.checkCircle, item.done && styles.checkCircleDone]}
-                onPress={() => toggleTask(item.id)}
-              >
-                {item.done && <CheckIcon size={13} color="#fff" />}
-              </TouchableOpacity>
-
-              <Text style={[styles.taskText, item.done && styles.taskTextDone]}>{item.text}</Text>
-
-              <TouchableOpacity
-                style={styles.deleteBtn}
-                onPress={() => handleDelete(item.id)}
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-              >
-                <TrashIcon size={14} color={C.inkFaint} />
-              </TouchableOpacity>
-            </View>
-          ))}
+            );
+          })}
         </View>
       )}
 
@@ -124,6 +131,10 @@ export function ListScreen({ tasks, query, setQuery, doneLength, toggleTask, del
 }
 
 const styles = StyleSheet.create({
+  breadcrumb: { fontSize: 12, color: C.ink, backgroundColor: C.card, marginBottom: 4 },
+  taskContent: { flexDirection: "row", alignItems: "center", gap: 4 },
+  checkButton: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
+  moveButton: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
   searchRow: {
     marginHorizontal: 20,
     marginBottom: 12,
@@ -167,17 +178,12 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   taskRow: {
-    flexDirection: "row",
-    alignItems: "flex-start",
     padding: 12,
     gap: 10,
     borderBottomWidth: 1,
     borderBottomColor: "#ede5d0",
   },
-  moveButtons: {
-    gap: 4,
-    marginRight: 4,
-  },
+  moveButtons: { flexDirection: "row", gap: 4 },
   checkCircle: {
     width: 22,
     height: 22,
@@ -204,9 +210,7 @@ const styles = StyleSheet.create({
     color: C.inkLight,
     textDecorationLine: "line-through",
   },
-  deleteBtn: {
-    marginTop: 4,
-  },
+  deleteBtn: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
   emptyCard: {
     padding: 40,
     alignItems: "center",
@@ -217,6 +221,8 @@ const styles = StyleSheet.create({
     fontFamily: Platform.OS === "android" ? "serif" : "Georgia",
   },
   clearDoneBtn: {
+    minHeight: 44,
+    justifyContent: "center",
     marginHorizontal: 20,
     marginTop: 10,
     borderWidth: 1,
