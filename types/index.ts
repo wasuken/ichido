@@ -6,4 +6,4 @@ export type Task = {
   order: number;
 };
 
-export type View = "focus" | "list" | "add";
+export type View = "focus" | "list" | "add" | "tags";

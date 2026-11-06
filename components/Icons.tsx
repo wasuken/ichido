@@ -6,6 +6,18 @@ type IconProps = {
   color?: string;
 };
 
+export const TagIcon = ({ size = 18, color = "#3d3028" }: IconProps) => (
+  <Svg width={size} height={size} viewBox="0 0 18 18" fill="none">
+    <Path
+      d="M2 2H8L16 10L10 16L2 8V2ZM5.5 5.5H5.6"
+      stroke={color}
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </Svg>
+);
+
 export const CheckIcon = ({ size = 20, color = "currentColor" }: IconProps) => (
   <Svg width={size} height={size} viewBox="0 0 20 20" fill="none">
     <Path

@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, Platform } from "react-native";
 import { C } from "../constants/colors";
 import { View as ViewType } from "../types";
 import { TabButton } from "./TabButton";
-import { ArrowIcon, ListIcon, PlusIcon } from "./Icons";
+import { ArrowIcon, ListIcon, PlusIcon, TagIcon } from "./Icons";
 
 type Props = {
   view: ViewType;
@@ -41,6 +41,12 @@ export function Header({ view, setView, pendingCount }: Props) {
           icon={<PlusIcon size={15} color={view === "add" ? C.ink : C.inkMid} />}
           onPress={() => setView("add")}
         />
+        <TabButton
+          label="タグ"
+          active={view === "tags"}
+          icon={<TagIcon size={15} color={view === "tags" ? C.ink : C.inkMid} />}
+          onPress={() => setView("tags")}
+        />
       </View>
     </View>
   );
@@ -77,6 +83,7 @@ const styles = StyleSheet.create({
   },
   tabs: {
     flexDirection: "row",
+    flexWrap: "wrap",
     gap: 4,
     marginBottom: 20,
   },

@@ -7,13 +7,15 @@ import { Header } from "./components/Header";
 import { FocusScreen } from "./screens/FocusScreen";
 import { ListScreen } from "./screens/ListScreen";
 import { AddScreen } from "./screens/AddScreen";
+import { TagsScreen } from "./screens/TagsScreen";
 
 export default function App() {
   const [view, setView] = useState<ViewType>("focus");
   const [input, setInput] = useState("");
+  const [query, setQuery] = useState("");
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
-  const { tasks, pending, done, loaded, addTasks, toggleTask, deleteTask, clearDone, reorderTasks } = useTasks();
+  const { tasks, pending, done, loaded, tags, addTag, addTasks, toggleTask, deleteTask, clearDone, reorderTasks } = useTasks();
 
   useEffect(() => {
     fadeAnim.stopAnimation(() => {
@@ -65,6 +67,8 @@ export default function App() {
             {view === "list" && (
               <ListScreen
                 tasks={tasks}
+                query={query}
+                setQuery={setQuery}
                 doneLength={done.length}
                 toggleTask={toggleTask}
                 deleteTask={deleteTask}
@@ -72,7 +76,17 @@ export default function App() {
                 reorderTasks={reorderTasks}
               />
             )}
-            {view === "add" && <AddScreen input={input} setInput={setInput} onAdd={handleAdd} />}
+            {view === "add" && <AddScreen input={input} setInput={setInput} onAdd={handleAdd} tags={tags} />}
+            {view === "tags" && (
+              <TagsScreen
+                tags={tags}
+                addTag={addTag}
+                onSelectTag={(tag) => {
+                  setQuery(`/${tag}`);
+                  setView("list");
+                }}
+              />
+            )}
           </Animated.View>
         </ScrollView>
       </KeyboardAvoidingView>

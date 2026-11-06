@@ -1,11 +1,14 @@
 import React from "react";
-import { View, Text, TouchableOpacity, StyleSheet, Alert, Platform } from "react-native";
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, Platform } from "react-native";
 import { C } from "../constants/colors";
 import { Task } from "../types";
 import { CheckIcon, TrashIcon } from "../components/Icons";
+import { filterTasks } from "../utils/search";
 
 type Props = {
   tasks: Task[];
+  query: string;
+  setQuery: (query: string) => void;
   doneLength: number;
   toggleTask: (id: string) => void;
   deleteTask: (id: string) => void;
@@ -19,7 +22,14 @@ const MoveIcon = ({ direction }: { direction: "up" | "down" }) => (
   </Text>
 );
 
-export function ListScreen({ tasks, doneLength, toggleTask, deleteTask, clearDone, reorderTasks }: Props) {
+export function ListScreen({ tasks, query, setQuery, doneLength, toggleTask, deleteTask, clearDone, reorderTasks }: Props) {
+  const filteredTasks = filterTasks(tasks, query);
+  const moveTask = (from: number, to: number) => {
+    reorderTasks(
+      tasks.findIndex((task) => task.id === filteredTasks[from].id),
+      tasks.findIndex((task) => task.id === filteredTasks[to].id),
+    );
+  };
   const handleDelete = (id: string) => {
     Alert.alert("削除", "このタスクを消しますか？", [
       { text: "キャンセル", style: "cancel" },
@@ -36,22 +46,48 @@ export function ListScreen({ tasks, doneLength, toggleTask, deleteTask, clearDon
 
   return (
     <View>
-      {tasks.length === 0 ? (
+      <View style={styles.searchRow}>
+        <TextInput
+          style={styles.searchInput}
+          value={query}
+          onChangeText={setQuery}
+          placeholder="やることを検索"
+          placeholderTextColor={C.inkLight}
+          accessibilityLabel="やることを検索"
+          autoCapitalize="none"
+          autoCorrect={false}
+          returnKeyType="search"
+        />
+        {query.length > 0 && (
+          <TouchableOpacity
+            style={styles.resetSearch}
+            onPress={() => setQuery("")}
+            accessibilityRole="button"
+            accessibilityLabel="検索をクリア"
+          >
+            <Text style={styles.resetSearchText}>クリア</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+      {query.trim().length > 0 && (
+        <Text style={styles.resultCount}>{filteredTasks.length} 件 / 全 {tasks.length} 件</Text>
+      )}
+      {filteredTasks.length === 0 ? (
         <View style={[styles.card, styles.emptyCard]}>
-          <Text style={styles.emptyText}>なにもない</Text>
+          <Text style={styles.emptyText}>{query.trim() ? "見つかりませんでした" : "なにもない"}</Text>
         </View>
       ) : (
         <View style={styles.card}>
-          {tasks.map((item, index) => (
+          {filteredTasks.map((item, index) => (
             <View key={item.id} style={styles.taskRow}>
               <View style={styles.moveButtons}>
                 {index > 0 && (
-                  <TouchableOpacity onPress={() => reorderTasks(index, index - 1)}>
+                  <TouchableOpacity onPress={() => moveTask(index, index - 1)}>
                     <MoveIcon direction="up" />
                   </TouchableOpacity>
                 )}
-                {index < tasks.length - 1 && (
-                  <TouchableOpacity onPress={() => reorderTasks(index, index + 1)}>
+                {index < filteredTasks.length - 1 && (
+                  <TouchableOpacity onPress={() => moveTask(index, index + 1)}>
                     <MoveIcon direction="down" />
                   </TouchableOpacity>
                 )}
@@ -80,7 +116,7 @@ export function ListScreen({ tasks, doneLength, toggleTask, deleteTask, clearDon
 
       {doneLength > 0 && (
         <TouchableOpacity style={styles.clearDoneBtn} onPress={handleClearDone}>
-          <Text style={styles.clearDoneBtnText}>完了済み {doneLength} 個を削除</Text>
+          <Text style={styles.clearDoneBtnText}>すべての完了済み {doneLength} 個を削除</Text>
         </TouchableOpacity>
       )}
     </View>
@@ -88,6 +124,36 @@ export function ListScreen({ tasks, doneLength, toggleTask, deleteTask, clearDon
 }
 
 const styles = StyleSheet.create({
+  searchRow: {
+    marginHorizontal: 20,
+    marginBottom: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: C.card,
+    borderWidth: 1,
+    borderColor: C.cardBorder,
+    borderRadius: 3,
+  },
+  searchInput: {
+    flex: 1,
+    minWidth: 0,
+    padding: 12,
+    fontSize: 16,
+    color: C.ink,
+  },
+  resetSearch: {
+    padding: 12,
+  },
+  resetSearchText: {
+    color: C.inkMid,
+    fontSize: 13,
+  },
+  resultCount: {
+    marginHorizontal: 20,
+    marginBottom: 10,
+    color: C.inkMid,
+    fontSize: 13,
+  },
   card: {
     marginHorizontal: 20,
     backgroundColor: C.card,
