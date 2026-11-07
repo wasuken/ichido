@@ -130,11 +130,11 @@ export function FocusScreen({ tags, selectedTag, onSelectTag, current, next, anc
             accessibilityRole="button"
             accessibilityState={{ expanded: splitting }}
           >
-            <Text style={styles.actionText}>{splitting ? "− 割る入力を閉じる" : "＋ 割る"}</Text>
+            <Text style={styles.actionText}>{splitting ? "− サブタスク入力を閉じる" : "＋ サブタスク"}</Text>
           </TouchableOpacity>
           {splitting && (
             <View ref={panelRef} collapsable={false} style={styles.splitPanel} onLayout={() => onSplitPanelLayout(panelRef.current)}>
-              <Text style={styles.breadcrumb}>1行1タスクに割る</Text>
+              <Text style={styles.breadcrumb}>1行1タスクにサブタスク化</Text>
               <TextInput
                 ref={inputRef}
                 multiline
